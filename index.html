@@ -720,8 +720,8 @@
                 
                 // Check if response has payment_links.web
                 if (data.payment_links && data.payment_links.web) {
-                    // Open payment page in new window
-                    window.open(data.payment_links.web, '_blank');
+                    // Open payment page in same tab
+                    window.location.href = data.payment_links.web;
                     closePaymentModal();
                 } else {
                     throw new Error('Payment link not found in response');
