@@ -320,6 +320,111 @@
             color: #666;
         }
 
+        /* Transaction Status Modal */
+        .status-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 2001;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-modal.active {
+            display: flex;
+        }
+
+        .status-modal-content {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .status-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+
+        .status-icon.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-icon.failed {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-title {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .status-title.success {
+            color: #28a745;
+        }
+
+        .status-title.failed {
+            color: #dc3545;
+        }
+
+        .status-details {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+
+        .status-details h4 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .status-details p {
+            margin: 0.5rem 0;
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .status-details strong {
+            color: #333;
+        }
+
+        .status-modal button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-top: 1rem;
+            transition: background 0.3s;
+        }
+
+        .status-modal button:hover {
+            background: #004499;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .nav-links {
@@ -554,6 +659,23 @@
         </div>
     </div>
 
+    <!-- Transaction Status Modal -->
+    <div id="status-modal" class="status-modal">
+        <div class="status-modal-content">
+            <div id="status-icon" class="status-icon">
+                <span id="status-icon-text">✓</span>
+            </div>
+            <h3 id="status-title" class="status-title">Transaction Status</h3>
+            <div id="status-details" class="status-details">
+                <h4>Transaction Details</h4>
+                <p><strong>Order ID:</strong> <span id="order-id">-</span></p>
+                <p><strong>Status:</strong> <span id="transaction-status">-</span></p>
+                <p><strong>Amount:</strong> <span id="transaction-amount">-</span></p>
+            </div>
+            <button onclick="closeStatusModal()">Continue</button>
+        </div>
+    </div>
+
     <script>
         // Package data for payment modal
         const packageData = {
@@ -703,6 +825,9 @@
 
             console.log('Making payment request with payload:', payload);
 
+            // Store payment amount for status display
+            storePaymentAmount(currentPackagePrice);
+
             // Make API call to Netlify function (which calls Juspay)
             fetch('/.netlify/functions/payment', {
                 method: 'POST',
@@ -738,10 +863,103 @@
             });
         }
 
+        // Store payment amount before redirecting to payment gateway
+        function storePaymentAmount(amount) {
+            localStorage.setItem('lastPaymentAmount', amount.toFixed(2));
+        }
+
+        // Transaction Status Functions
+        function getUrlParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return {
+                status: urlParams.get('status'),
+                status_id: urlParams.get('status_id'),
+                order_id: urlParams.get('order_id'),
+                signature: urlParams.get('signature'),
+                signature_algorithm: urlParams.get('signature_algorithm')
+            };
+        }
+
+        function showTransactionStatus(params) {
+            const statusModal = document.getElementById('status-modal');
+            const statusIcon = document.getElementById('status-icon');
+            const statusIconText = document.getElementById('status-icon-text');
+            const statusTitle = document.getElementById('status-title');
+            const orderId = document.getElementById('order-id');
+            const transactionStatus = document.getElementById('transaction-status');
+            const transactionAmount = document.getElementById('transaction-amount');
+
+            // Determine if transaction was successful
+            const isSuccess = params.status === 'CHARGED';
+            
+            // Update icon and title based on status
+            if (isSuccess) {
+                statusIcon.className = 'status-icon success';
+                statusIconText.textContent = '✓';
+                statusTitle.textContent = 'Payment Successful!';
+                statusTitle.className = 'status-title success';
+                transactionStatus.textContent = 'SUCCESS';
+                transactionStatus.style.color = '#28a745';
+                transactionStatus.style.fontWeight = 'bold';
+            } else {
+                statusIcon.className = 'status-icon failed';
+                statusIconText.textContent = '✗';
+                statusTitle.textContent = 'Payment Failed';
+                statusTitle.className = 'status-title failed';
+                transactionStatus.textContent = 'FAILED';
+                transactionStatus.style.color = '#dc3545';
+                transactionStatus.style.fontWeight = 'bold';
+            }
+
+            // Update transaction details
+            orderId.textContent = params.order_id || 'N/A';
+            
+            // Try to get amount from localStorage if available (from previous payment)
+            const storedAmount = localStorage.getItem('lastPaymentAmount');
+            if (storedAmount) {
+                transactionAmount.textContent = storedAmount + ' AED';
+                // Clear stored amount after use
+                localStorage.removeItem('lastPaymentAmount');
+            } else {
+                transactionAmount.textContent = 'N/A';
+            }
+
+            // Show the modal
+            statusModal.classList.add('active');
+
+            // Clean URL parameters after showing status
+            setTimeout(() => {
+                const cleanUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }, 1000);
+        }
+
+        function closeStatusModal() {
+            document.getElementById('status-modal').classList.remove('active');
+        }
+
+        // Check for transaction status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = getUrlParameters();
+            
+            // If we have transaction status parameters, show the status modal
+            if (urlParams.status && urlParams.order_id) {
+                console.log('Transaction status detected:', urlParams);
+                showTransactionStatus(urlParams);
+            }
+        });
+
         // Close modal when clicking outside
         document.getElementById('payment-modal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closePaymentModal();
+            }
+        });
+
+        // Close status modal when clicking outside
+        document.getElementById('status-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeStatusModal();
             }
         });
     </script>
